@@ -1,0 +1,37 @@
+package com.example.elasticclient;
+
+import com.example.elasticclient.entity.RewardedAdsLogItem;
+
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+
+public class ElasticSearchConnect {
+
+    String serverUrl = "https://34.142.248.207:9200";
+    String apiKey = "TGJoc1Q1c0JEZjBUVEZSRWxrUnU6R3hqMEpzOHU1TDY2bmdrOVJrTVdkZw==";
+
+    ElasticsearchClient esClient;
+
+    public void Connect() {
+        esClient = ElasticsearchClient.of(b -> b
+            .host(serverUrl)
+            .usernameAndPassword("elastic", "fjahtvzSCzjr3xXCFOLN")
+        );
+    }
+
+    public void Search() {
+
+        try {
+            SearchResponse<RewardedAdsLogItem> search = esClient.search(s -> s
+                    .index("rewarded_ads"), RewardedAdsLogItem.class);
+
+            for (Hit<RewardedAdsLogItem> hit : search.hits().hits()) {
+                System.out.println(hit.source().placement);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+}
