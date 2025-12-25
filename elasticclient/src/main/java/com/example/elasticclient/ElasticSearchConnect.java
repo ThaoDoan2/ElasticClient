@@ -3,6 +3,8 @@ package com.example.elasticclient;
 import com.example.elasticclient.entity.RewardedAdsLogItem;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch.core.BulkRequest;
+import co.elastic.clients.elasticsearch.core.IndexResponse;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 
@@ -15,9 +17,8 @@ public class ElasticSearchConnect {
 
     public void Connect() {
         esClient = ElasticsearchClient.of(b -> b
-            .host(serverUrl)
-            .usernameAndPassword("elastic", "fjahtvzSCzjr3xXCFOLN")
-        );
+                .host(serverUrl)
+                .usernameAndPassword("elastic", "fjahtvzSCzjr3xXCFOLN"));
     }
 
     public void Search() {
@@ -29,6 +30,29 @@ public class ElasticSearchConnect {
             for (Hit<RewardedAdsLogItem> hit : search.hits().hits()) {
                 System.out.println(hit.source().placement);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    public void onRewardedAds(String id, RewardedAdsLogItem rewardedAdsLogItem) {
+        try {
+            IndexResponse response = esClient.index(i -> i.index("rewarded_ads")
+                    .id(id).document(rewardedAdsLogItem));
+
+            System.out.println("Indexed with version " + response.version());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void onLevelLog(String id, LevelPlayLogItem levelPlayLogItem) {
+        try {
+            IndexResponse response = esClient.index(i -> i.index("level_play")
+                    .id(id).document(levelPlayLogItem));
+
+            System.out.println("Indexed with version " + response.version());
         } catch (Exception e) {
             e.printStackTrace();
         }
