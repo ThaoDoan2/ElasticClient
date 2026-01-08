@@ -39,10 +39,18 @@ public class ElasticSearchConnect {
 
     public void onRewardedAds(String id, RewardedAdsLogItem rewardedAdsLogItem) {
         try {
-            IndexResponse response = esClient.index(i -> i.index("rewarded_ads")
+            IndexResponse response = esClient.index(i -> i.index("rewarded_ads_2")
                     .id(id).document(rewardedAdsLogItem));
 
             System.out.println("Indexed with version " + response.version());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void deleteRewardedAds(String id){
+        try {
+            esClient.delete(d -> d.index("rewarded_ads_2").id(id));
         } catch (Exception e) {
             e.printStackTrace();
         }
