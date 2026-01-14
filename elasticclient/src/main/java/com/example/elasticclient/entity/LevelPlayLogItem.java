@@ -2,6 +2,7 @@ package com.example.elasticclient.entity;
 
 import java.util.Date;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -21,6 +22,9 @@ public class LevelPlayLogItem {
 
     @JsonProperty("loggedDay")
     public int loggedDay;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
+    public Date date;
 
     @JsonProperty("accountCreatedDate")
     public Date accountCreatedDate;

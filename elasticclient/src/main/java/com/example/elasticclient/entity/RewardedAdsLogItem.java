@@ -3,7 +3,9 @@ package com.example.elasticclient.entity;
 import java.util.Date;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RewardedAdsLogItem {
     public String userId;
     public String platform;

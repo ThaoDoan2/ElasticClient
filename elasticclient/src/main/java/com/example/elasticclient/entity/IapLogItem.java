@@ -1,18 +1,18 @@
 package com.example.elasticclient.entity;
 
-
 import java.util.Date;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class IapLogItem {
-    public String userId;
     public String gameId;
     public String eventType;
-    public String placement;
-    public String subPlacement;
+    public String userId;
     public String platform;
     public String gameVersion;
+    public String country;
     public int level;
     public int loggedDay;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
@@ -21,7 +21,8 @@ public class IapLogItem {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
     public Date date;
 
-    
+    public String placement;
+    public String subPlacement;
     public String productId;
     public String transactionId;
     public String orderId;
@@ -34,8 +35,9 @@ public class IapLogItem {
     public IapLogItem() {
     }
 
-    public IapLogItem(String userId, String gameId, String eventType, String placement, String subPlacement,
-            String platform, String gameVersion, int level, int loggedDay, Date accountCreatedDate, Date date, String productId,
+    public IapLogItem(String gameId, String eventType, String userId,
+            String platform, String gameVersion, String country, int level, int loggedDay, Date accountCreatedDate,
+            Date date, String productId, String placement, String subPlacement,
             String transactionId, String orderId, String purchaseState, String receipt, String currencyCode,
             String purchaseToken, float price) {
         this.userId = userId;
