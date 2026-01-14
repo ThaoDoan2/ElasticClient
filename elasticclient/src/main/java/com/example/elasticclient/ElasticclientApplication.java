@@ -61,7 +61,7 @@ public class ElasticclientApplication {
 				int r = new Random().nextInt(100);
 				d = new Date(d.getTime() + (r % 7) * 86400000L);
 				RewardedAdsLogItem rewardedAdsLogItem = new RewardedAdsLogItem("user" + i, platforms[r % 2],
-						countries[r % 5], "1.0.0", "" + (r%50),
+						countries[r % 5], "1.0.0", r%50,
 						r, d, d, placements[r % 3], "");
 				//connector.deleteRewardedAds("rewarded_ads_" + (i * 102));
 				connector.onRewardedAds("rewarded_"+(index*102), rewardedAdsLogItem);

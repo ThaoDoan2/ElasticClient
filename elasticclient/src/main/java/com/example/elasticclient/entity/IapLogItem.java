@@ -2,25 +2,10 @@ package com.example.elasticclient.entity;
 
 import java.util.Date;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class IapLogItem {
-    public String gameId;
-    public String eventType;
-    public String userId;
-    public String platform;
-    public String gameVersion;
-    public String country;
-    public int level;
-    public int loggedDay;
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
-    public Date accountCreatedDate;
-
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX", timezone = "UTC")
-    public Date date;
-
+public class IapLogItem extends LogItem {
     public String placement;
     public String subPlacement;
     public String productId;

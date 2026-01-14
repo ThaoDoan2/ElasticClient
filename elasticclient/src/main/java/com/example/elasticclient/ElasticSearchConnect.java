@@ -1,5 +1,6 @@
 package com.example.elasticclient;
 
+import com.example.elasticclient.config.ElasticsearchConfig;
 import com.example.elasticclient.entity.IapLogItem;
 import com.example.elasticclient.entity.LevelPlayLogItem;
 import com.example.elasticclient.entity.RewardedAdsLogItem;
@@ -11,15 +12,22 @@ import co.elastic.clients.elasticsearch.core.search.Hit;
 
 public class ElasticSearchConnect {
 
-    String serverUrl = "https://34.142.248.207:9200";
-    String apiKey = "TGJoc1Q1c0JEZjBUVEZSRWxrUnU6R3hqMEpzOHU1TDY2bmdrOVJrTVdkZw==";
-
+    String serverUrl;
+    String userName;
+    String password;
     ElasticsearchClient esClient;
+
+    public ElasticSearchConnect() {
+        new ElasticsearchConfig().LoadConfig();
+        serverUrl = ElasticsearchConfig.host;
+        userName = ElasticsearchConfig.userName;
+        password = ElasticsearchConfig.password;
+    }
 
     public void Connect() {
         esClient = ElasticsearchClient.of(b -> b
                 .host(serverUrl)
-                .usernameAndPassword("elastic", "fjahtvzSCzjr3xXCFOLN"));
+                .usernameAndPassword(userName, password));
     }
 
     public void Search() {
