@@ -5,27 +5,28 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.example.elasticclient.entity.IapLogItem;
 import com.example.elasticclient.entity.LevelPlayLogItem;
 import com.example.elasticclient.entity.RewardedAdsLogItem;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 public class HttpServerListener {
+    private static final Logger logger = LogManager.getLogger(HttpServerListener.class);
     private static final int PORT = 8080;
     private static final String CONTEXT = "/logEvent";
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static ElasticSearchConnect elasticSearchConnect = new ElasticSearchConnect();
     // API key for security
     private static final String API_KEY = "changeme-123456"; // Change this to your secure key
     private static final String API_KEY_HEADER = "X-API-KEY";
 
     public static void main(String[] args) throws IOException {
-        // Connect to Elasticsearch
-        elasticSearchConnect.Connect();
-
         HttpServer server = HttpServer.create(new InetSocketAddress(PORT), 0);
         server.createContext(CONTEXT, new RewardedAdsLogHandler());
         server.setExecutor(null); // creates a default executor
@@ -61,26 +62,26 @@ public class HttpServerListener {
                     }
                     String eventType = root.get("eventType").asText();
                     String response;
+                    ObjectNode logNode = objectMapper.createObjectNode();
+                    logNode.put("eventType", eventType);
+                    logNode.put("timestamp", System.currentTimeMillis());
                     switch (eventType) {
                         case "rewarded": {
                             RewardedAdsLogItem logItem = objectMapper.treeToValue(root, RewardedAdsLogItem.class);
-                            String id = logItem.userId + "-" + (logItem.date != null ? logItem.date.getTime() : System.currentTimeMillis());
-                            elasticSearchConnect.onRewardedAds(id, logItem);
-                            response = "Logged RewardedAds to Elasticsearch";
+                            logNode.set("data", objectMapper.valueToTree(logItem));
+                            response = "Logged RewardedAds event";
                             break;
                         }
                         case "iap": {
                             IapLogItem logItem = objectMapper.treeToValue(root, IapLogItem.class);
-                            String id = logItem.userId + "-" + (logItem.date != null ? logItem.date.getTime() : System.currentTimeMillis());
-                            elasticSearchConnect.onIapLog(id, logItem);
-                            response = "Logged IAP to Elasticsearch";
+                            logNode.set("data", objectMapper.valueToTree(logItem));
+                            response = "Logged IAP event";
                             break;
                         }
                         case "level": {
                             LevelPlayLogItem logItem = objectMapper.treeToValue(root, LevelPlayLogItem.class);
-                            String id = logItem.userId + "-" + (logItem.date != null ? logItem.date.getTime() : System.currentTimeMillis());
-                            elasticSearchConnect.onLevelLog(id, logItem);
-                            response = "Logged LevelPlay to Elasticsearch";
+                            logNode.set("data", objectMapper.valueToTree(logItem));
+                            response = "Logged LevelPlay event";
                             break;
                         }
                         default: {
@@ -92,6 +93,8 @@ public class HttpServerListener {
                             return;
                         }
                     }
+                    // Output log as JSON for Logstash using Log4j2
+                    logger.info(objectMapper.writeValueAsString(logNode));
                     exchange.sendResponseHeaders(200, response.length());
                     try (OutputStream os = exchange.getResponseBody()) {
                         os.write(response.getBytes());
