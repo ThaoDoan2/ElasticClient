@@ -20,10 +20,12 @@ import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 
 @Service
-public class InAppAnalyticsService {
+public class InAppAnalyticsService implements IInAppAnalyticsService {
 
     @Autowired
     private ElasticsearchClient esClient;
+
+    
 
     public List<InAppChartDTO> getInAppByDate(
             String from, String to,
