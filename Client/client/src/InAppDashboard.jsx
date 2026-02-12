@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import axios from "axios";
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
@@ -44,6 +44,7 @@ export default function InAppDashboard() {
   const [country, setCountry] = useState("");
   const [version, setVersion] = useState("");
   const [platform, setPlatform] = useState("");
+  const [platformOptions, setPlatformOptions] = useState([]);
   const [products, setProducts] = useState([]);
   const [compactChartData, setCompactChartData] = useState(null);
   const [compactChartMaxY, setCompactChartMaxY] = useState(10);
@@ -53,15 +54,39 @@ export default function InAppDashboard() {
   const [revenueChartRenderKey, setRevenueChartRenderKey] = useState(0);
   const [revenueRatioChartData, setRevenueRatioChartData] = useState(null);
   const [revenueRatioChartRenderKey, setRevenueRatioChartRenderKey] = useState(0);
+  const [placementRatioChartData, setPlacementRatioChartData] = useState(null);
+  const [placementRatioChartRenderKey, setPlacementRatioChartRenderKey] = useState(0);
   const [error, setError] = useState("");
 
   const toApiDate = (value) => {
-    // Browser date input uses YYYY-MM-DD; API may expect MM/DD/YYYY.
-    if (!value || !value.includes("-")) return value;
-    const [yyyy, mm, dd] = value.split("-");
-    if (!yyyy || !mm || !dd) return value;
-    return `${mm}/${dd}/${yyyy}`;
+    // Keep browser ISO format (YYYY-MM-DD) to avoid backend parse issues.
+    return value;
   };
+
+  useEffect(() => {
+    const loadPlatforms = async () => {
+      try {
+        const apiBase = process.env.REACT_APP_API_BASE_URL || "";
+        const res = await axios.get(`${apiBase}/api/iap/platforms`);
+        const raw = Array.isArray(res.data) ? res.data : [];
+        const options = raw
+          .map((item) => {
+            if (typeof item === "string") return item.trim();
+            if (item && typeof item === "object") {
+              return String(item.platform ?? item.name ?? item.value ?? "").trim();
+            }
+            return "";
+          })
+          .filter(Boolean);
+        setPlatformOptions(Array.from(new Set(options)));
+      } catch (err) {
+        console.error("Failed to load platforms", err);
+        setPlatformOptions([]);
+      }
+    };
+
+    loadPlatforms();
+  }, []);
 
   const buildStackedChart = (rows, metricKeys) => {
     const data = Array.isArray(rows) ? rows : [];
@@ -163,22 +188,65 @@ export default function InAppDashboard() {
     };
   };
 
+  const buildPlacementRatioChart = (rows) => {
+    const list = Array.isArray(rows)
+      ? rows
+      : rows && typeof rows === "object"
+        ? Object.entries(rows).map(([placement, value]) => ({ placement, value }))
+        : [];
+
+    const totals = list
+      .map((row) => {
+        const placement = String(
+          row?.placement ?? row?.placementId ?? row?.name ?? row?.key ?? ""
+        ).trim();
+        const value = Number(
+          row?.ratio ??
+          row?.share ??
+          row?.percentage ??
+          row?.value ??
+          row?.revenue ??
+          row?.totalRevenue ??
+          0
+        );
+        return { placement, value };
+      })
+      .filter((item) => item.placement && Number.isFinite(item.value) && item.value > 0)
+      .sort((a, b) => b.value - a.value);
+
+    if (!totals.length) return null;
+
+    return {
+      labels: totals.map((item) => item.placement),
+      datasets: [
+        {
+          label: "Placement Ratio",
+          data: totals.map((item) => item.value),
+          backgroundColor: totals.map((item) => `${getProductColor(item.placement)}cc`),
+          borderColor: totals.map((item) => getProductColor(item.placement)),
+          borderWidth: 1
+        }
+      ]
+    };
+  };
+
   const loadData = async () => {
     const params = {
       fromDate: toApiDate(fromDate),
-      toDate: toApiDate(toDate),
-      country: country || null,
-      gameVersion: version || null,
-      platform: platform || null,
-      products: products.length ? products : null
+      toDate: toApiDate(toDate)
     };
+    if (country) params.country = country;
+    if (version) params.gameVersion = version;
+    if (platform) params.platform = platform;
+    if (products.length) params.products = products;
 
     try {
       setError("");
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
-      const [compactRes, revenueRes] = await Promise.all([
+      const [compactRes, revenueRes, placementRatioRes] = await Promise.all([
         axios.get(`${apiBase}/api/iap/chart/compact`, { params }),
-        axios.get(`${apiBase}/api/iap/revenue-by-date`, { params })
+        axios.get(`${apiBase}/api/iap/revenue-by-date`, { params }),
+        axios.get(`${apiBase}/api/iap/ratio/placement`, { params })
       ]);
 
       const compact = buildStackedChart(compactRes.data, [
@@ -192,8 +260,9 @@ export default function InAppDashboard() {
         "amount",
         "totalRevenue"
       ]);
+      const placementRatio = buildPlacementRatioChart(placementRatioRes.data);
 
-      if (!compact && !revenue) {
+      if (!compact && !revenue && !placementRatio) {
         setError("No chart data for selected filters.");
       }
 
@@ -219,6 +288,13 @@ export default function InAppDashboard() {
         setRevenueChartData(null);
         setRevenueRatioChartData(null);
       }
+
+      if (placementRatio) {
+        setPlacementRatioChartData(placementRatio);
+        setPlacementRatioChartRenderKey((prev) => prev + 1);
+      } else {
+        setPlacementRatioChartData(null);
+      }
     } catch (err) {
       if (axios.isAxiosError(err) && !err.response) {
         setError("Cannot reach API. Make sure backend is running and proxy/base URL is configured.");
@@ -237,6 +313,7 @@ export default function InAppDashboard() {
       setRevenueChartMaxY(10);
       setRevenueChartData(null);
       setRevenueRatioChartData(null);
+      setPlacementRatioChartData(null);
     }
   };
 
@@ -251,7 +328,18 @@ export default function InAppDashboard() {
 
           <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} placeholder="Country" value={country} onChange={e => setCountry(e.target.value)} />
           <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} placeholder="Version" value={version} onChange={e => setVersion(e.target.value)} />
-          <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} placeholder="Platform" value={platform} onChange={e => setPlatform(e.target.value)} />
+          <select
+            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value)}
+          >
+            <option value="">All Platforms</option>
+            {platformOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
 
           <select style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }} multiple onChange={e =>
           setProducts(Array.from(e.target.selectedOptions, o => o.value))
@@ -332,6 +420,37 @@ export default function InAppDashboard() {
                           const total = dataset.reduce((sum, n) => sum + (Number(n) || 0), 0);
                           const ratio = total > 0 ? (value / total) * 100 : 0;
                           return `${context.label}: ${value.toFixed(2)} (${ratio.toFixed(1)}%)`;
+                        }
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {placementRatioChartData && (
+          <>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Revenue Ratio by Placement</h3>
+            <div style={{ height: 340, maxWidth: 760, margin: "0 auto" }}>
+              <Doughnut
+                key={placementRatioChartRenderKey}
+                redraw
+                data={placementRatioChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: "right" },
+                    tooltip: {
+                      callbacks: {
+                        label: (context) => {
+                          const value = Number(context.parsed) || 0;
+                          const dataset = context.dataset?.data || [];
+                          const total = dataset.reduce((sum, n) => sum + (Number(n) || 0), 0);
+                          const ratio = total > 0 ? (value / total) * 100 : 0;
+                          return `${context.label}: ${ratio.toFixed(1)}%`;
                         }
                       }
                     }
