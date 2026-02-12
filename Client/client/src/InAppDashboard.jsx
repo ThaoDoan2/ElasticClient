@@ -1,16 +1,17 @@
 import { useState } from "react";
 import axios from "axios";
-import { Bar } from "react-chartjs-2";
+import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  ArcElement,
   Tooltip,
   Legend
 } from "chart.js";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
 const PRODUCT_COLORS = [
   "#2563eb",
@@ -44,8 +45,14 @@ export default function InAppDashboard() {
   const [version, setVersion] = useState("");
   const [platform, setPlatform] = useState("");
   const [products, setProducts] = useState([]);
-  const [chartData, setChartData] = useState(null);
-  const [chartMaxY, setChartMaxY] = useState(10);
+  const [compactChartData, setCompactChartData] = useState(null);
+  const [compactChartMaxY, setCompactChartMaxY] = useState(10);
+  const [compactChartRenderKey, setCompactChartRenderKey] = useState(0);
+  const [revenueChartData, setRevenueChartData] = useState(null);
+  const [revenueChartMaxY, setRevenueChartMaxY] = useState(10);
+  const [revenueChartRenderKey, setRevenueChartRenderKey] = useState(0);
+  const [revenueRatioChartData, setRevenueRatioChartData] = useState(null);
+  const [revenueRatioChartRenderKey, setRevenueRatioChartRenderKey] = useState(0);
   const [error, setError] = useState("");
 
   const toApiDate = (value) => {
@@ -54,6 +61,106 @@ export default function InAppDashboard() {
     const [yyyy, mm, dd] = value.split("-");
     if (!yyyy || !mm || !dd) return value;
     return `${mm}/${dd}/${yyyy}`;
+  };
+
+  const buildStackedChart = (rows, metricKeys) => {
+    const data = Array.isArray(rows) ? rows : [];
+    const aggregatedByDate = new Map();
+
+    data.forEach((row) => {
+      const date = row?.date ? String(row.date).trim() : "";
+      if (!date) return;
+      if (!aggregatedByDate.has(date)) aggregatedByDate.set(date, {});
+      const merged = aggregatedByDate.get(date);
+
+      if (row?.products && typeof row.products === "object") {
+        Object.entries(row.products).forEach(([productId, rawValue]) => {
+          const value = Number(rawValue);
+          const safeValue = Number.isFinite(value) && value >= 0 ? value : 0;
+          merged[productId] = (merged[productId] || 0) + safeValue;
+        });
+        return;
+      }
+
+      const productId = row?.productId ? String(row.productId).trim() : "";
+      if (!productId) return;
+
+      const rawValue = metricKeys
+        .map((key) => row?.[key])
+        .find((value) => value !== undefined && value !== null);
+      const metricValue = Number(rawValue ?? 0);
+      if (!Number.isFinite(metricValue) || metricValue < 0) return;
+      merged[productId] = (merged[productId] || 0) + metricValue;
+    });
+
+    const points = Array.from(aggregatedByDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, productsMap]) => ({ date, products: productsMap }));
+    if (!points.length) return null;
+
+    const labels = points.map((d) => d.date);
+    const productSet = new Set();
+    points.forEach((d) => {
+      Object.keys(d.products).forEach((p) => productSet.add(p));
+    });
+
+    const datasets = Array.from(productSet).map((p) => ({
+      label: p,
+      data: points.map((d) => {
+        const value = Number(d.products[p]);
+        return Number.isFinite(value) && value >= 0 ? value : 0;
+      }),
+      stack: "stack1",
+      backgroundColor: `${getProductColor(p)}cc`,
+      borderColor: getProductColor(p),
+      borderWidth: 1,
+      borderRadius: 4
+    }));
+
+    const stackedTotals = points.map((d) =>
+      Object.values(d.products).reduce((sum, n) => {
+        const value = Number(n);
+        return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
+      }, 0)
+    );
+    const maxStack = Math.max(0, ...stackedTotals);
+    const maxY = maxStack === 0 ? 10 : Math.ceil(maxStack * 1.15);
+
+    return { data: { labels, datasets }, maxY };
+  };
+
+  const buildRevenueRatioChart = (stackedChart) => {
+    if (!stackedChart?.data?.datasets?.length) return null;
+
+    const totals = stackedChart.data.datasets
+      .map((dataset) => {
+        const total = (Array.isArray(dataset.data) ? dataset.data : []).reduce((sum, n) => {
+          const value = Number(n);
+          return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
+        }, 0);
+        return {
+          productId: dataset.label,
+          total,
+          color: getProductColor(String(dataset.label || "Unknown"))
+        };
+      })
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    if (!totals.length) return null;
+
+    return {
+      labels: totals.map((item) => item.productId),
+      datasets: [
+        {
+          label: "Revenue Ratio",
+          data: totals.map((item) => item.total),
+          backgroundColor: totals.map((item) => `${item.color}cc`),
+          borderColor: totals.map((item) => item.color),
+          borderWidth: 1
+        }
+      ]
+    };
   };
 
   const loadData = async () => {
@@ -69,67 +176,49 @@ export default function InAppDashboard() {
     try {
       setError("");
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
-      const res = await axios.get(`${apiBase}/api/iap/chart/compact`, { params });
-      const data = Array.isArray(res.data) ? res.data : [];
+      const [compactRes, revenueRes] = await Promise.all([
+        axios.get(`${apiBase}/api/iap/chart/compact`, { params }),
+        axios.get(`${apiBase}/api/iap/revenue-by-date`, { params })
+      ]);
 
-      const aggregatedByDate = new Map();
-      data.forEach((row) => {
-        const date = row?.date ? String(row.date).trim() : "";
-        if (!date) return;
+      const compact = buildStackedChart(compactRes.data, [
+        "count",
+        "quantity",
+        "purchases",
+        "total"
+      ]);
+      const revenue = buildStackedChart(revenueRes.data, [
+        "revenue",
+        "amount",
+        "totalRevenue"
+      ]);
 
-        const productMap = row?.products && typeof row.products === "object" ? row.products : {};
-        if (!aggregatedByDate.has(date)) aggregatedByDate.set(date, {});
-
-        const merged = aggregatedByDate.get(date);
-        Object.entries(productMap).forEach(([productId, rawValue]) => {
-          const value = Number(rawValue);
-          const safeValue = Number.isFinite(value) && value >= 0 ? value : 0;
-          merged[productId] = (merged[productId] || 0) + safeValue;
-        });
-      });
-
-      const points = Array.from(aggregatedByDate.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, productsMap]) => ({ date, products: productsMap }));
-
-      if (!points.length) {
+      if (!compact && !revenue) {
         setError("No chart data for selected filters.");
-        setChartMaxY(10);
-        setChartData(null);
-        return;
       }
 
-      const labels = points.map(d => d.date);
+      if (compact) {
+        setCompactChartMaxY(compact.maxY);
+        setCompactChartData(compact.data);
+        setCompactChartRenderKey((prev) => prev + 1);
+      } else {
+        setCompactChartMaxY(10);
+        setCompactChartData(null);
+      }
 
-      const productSet = new Set();
-      points.forEach(d => {
-        Object.keys(d.products).forEach(p => productSet.add(p));
-      });
+      if (revenue) {
+        setRevenueChartMaxY(revenue.maxY);
+        setRevenueChartData(revenue.data);
+        setRevenueChartRenderKey((prev) => prev + 1);
 
-      const datasets = Array.from(productSet).map(p => ({
-        label: p,
-        data: points.map(d => {
-          const value = Number(d.products[p]);
-          return Number.isFinite(value) && value >= 0 ? value : 0;
-        }),
-        stack: "stack1",
-        backgroundColor: `${getProductColor(p)}cc`,
-        borderColor: getProductColor(p),
-        borderWidth: 1,
-        borderRadius: 4
-      }));
-
-      const stackedTotals = points.map((d) => {
-        return Object.values(d.products).reduce((sum, n) => {
-          const value = Number(n);
-          return sum + (Number.isFinite(value) && value >= 0 ? value : 0);
-        }, 0);
-      });
-      const maxStack = Math.max(0, ...stackedTotals);
-      const nextMaxY = maxStack === 0 ? 10 : Math.ceil(maxStack * 1.15);
-
-      setChartMaxY(nextMaxY);
-      setChartData({ labels, datasets });
+        const ratio = buildRevenueRatioChart(revenue);
+        setRevenueRatioChartData(ratio);
+        setRevenueRatioChartRenderKey((prev) => prev + 1);
+      } else {
+        setRevenueChartMaxY(10);
+        setRevenueChartData(null);
+        setRevenueRatioChartData(null);
+      }
     } catch (err) {
       if (axios.isAxiosError(err) && !err.response) {
         setError("Cannot reach API. Make sure backend is running and proxy/base URL is configured.");
@@ -143,8 +232,11 @@ export default function InAppDashboard() {
         console.error(err);
         setError("Failed to load dashboard data.");
       }
-      setChartMaxY(10);
-      setChartData(null);
+      setCompactChartMaxY(10);
+      setCompactChartData(null);
+      setRevenueChartMaxY(10);
+      setRevenueChartData(null);
+      setRevenueRatioChartData(null);
     }
   };
 
@@ -175,38 +267,79 @@ export default function InAppDashboard() {
 
         {error && <div style={{ color: "#b00020", marginBottom: 10 }}>{error}</div>}
 
-        {chartData && (
-          <Bar data={chartData} options={{
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: "right",
-                labels: {
-                  color: "#1f2937",
-                  usePointStyle: true,
-                  boxWidth: 10,
-                  boxHeight: 10,
-                  padding: 12
-                }
-              }
-            },
-            scales: {
-              x: {
-                stacked: true,
-                ticks: { color: "#374151", autoSkip: true, maxTicksLimit: 12 },
-                grid: { color: "#e5e7eb" }
-              },
-              y: {
-                stacked: true,
-                beginAtZero: true,
-                suggestedMax: chartMaxY,
-                grace: "8%",
-                ticks: { color: "#374151" },
-                grid: { color: "#e5e7eb" }
-              }
-            }
-          }} height={420} />
+        {compactChartData && (
+          <>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Purchases Per Day (by Product)</h3>
+            <div style={{ height: 320, marginBottom: 18 }}>
+              <Bar
+                key={compactChartRenderKey}
+                redraw
+                data={compactChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: "right" } },
+                  scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true, suggestedMax: compactChartMaxY }
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {revenueChartData && (
+          <>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Revenue Per Day (by Product)</h3>
+            <div style={{ height: 320, marginBottom: 18 }}>
+              <Bar
+                key={revenueChartRenderKey}
+                redraw
+                data={revenueChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: "right" } },
+                  scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true, suggestedMax: revenueChartMaxY }
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {revenueRatioChartData && (
+          <>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Revenue Ratio by Product</h3>
+            <div style={{ height: 340, maxWidth: 760, margin: "0 auto" }}>
+              <Doughnut
+                key={revenueRatioChartRenderKey}
+                redraw
+                data={revenueRatioChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: "right" },
+                    tooltip: {
+                      callbacks: {
+                        label: (context) => {
+                          const value = Number(context.parsed) || 0;
+                          const dataset = context.dataset?.data || [];
+                          const total = dataset.reduce((sum, n) => sum + (Number(n) || 0), 0);
+                          const ratio = total > 0 ? (value / total) * 100 : 0;
+                          return `${context.label}: ${value.toFixed(2)} (${ratio.toFixed(1)}%)`;
+                        }
+                      }
+                    }
+                  }
+                }}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>
