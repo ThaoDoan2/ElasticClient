@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
@@ -38,13 +38,72 @@ const getProductColor = (productId) => {
   return PRODUCT_COLORS[index];
 };
 
+const normalizeUnique = (values) =>
+  Array.from(new Set((Array.isArray(values) ? values : []).map((v) => String(v).trim()).filter(Boolean)));
+
+const getParamValue = (selectedValues, allOptions) => {
+  const options = normalizeUnique(allOptions);
+  const selected = normalizeUnique(selectedValues).filter((v) => options.includes(v));
+  if (!options.length) return "";
+  if (!selected.length) return "";
+  if (selected.length === options.length) return "";
+  return selected.join(",");
+};
+
+const mapToStringOptions = (payload, keyCandidates = []) => {
+  if (Array.isArray(payload)) {
+    return payload
+      .map((item) => {
+        if (typeof item === "string" || typeof item === "number") return String(item).trim();
+        if (item && typeof item === "object") {
+          for (const key of keyCandidates) {
+            const value = item?.[key];
+            if (value !== undefined && value !== null && String(value).trim()) {
+              return String(value).trim();
+            }
+          }
+        }
+        return "";
+      })
+      .filter(Boolean);
+  }
+
+  if (payload && typeof payload === "object") {
+    return Object.keys(payload).map((key) => String(key).trim()).filter(Boolean);
+  }
+
+  return [];
+};
+
+async function fetchFirstOptionList(apiBase, endpoints, keyCandidates) {
+  for (const endpoint of endpoints) {
+    try {
+      const response = await axios.get(`${apiBase}${endpoint}`);
+      const options = Array.from(new Set(mapToStringOptions(response.data, keyCandidates)));
+      if (options.length) return options;
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        continue;
+      }
+    }
+  }
+  return [];
+}
+
 export default function InAppDashboard() {
   const [fromDate, setFrom] = useState("2026-01-29");
   const [toDate, setTo] = useState("2026-02-05");
-  const [country, setCountry] = useState("");
-  const [version, setVersion] = useState("");
-  const [platform, setPlatform] = useState("");
+  const [minLevel, setMinLevel] = useState("");
+  const [maxLevel, setMaxLevel] = useState("");
+  const [countries, setCountries] = useState([]);
+  const [platforms, setPlatforms] = useState([]);
+  const [versions, setVersions] = useState([]);
+  const [placements, setPlacements] = useState([]);
+  const [countryOptions, setCountryOptions] = useState([]);
   const [platformOptions, setPlatformOptions] = useState([]);
+  const [versionOptions, setVersionOptions] = useState([]);
+  const [placementOptions, setPlacementOptions] = useState([]);
+  const [productOptions, setProductOptions] = useState([]);
   const [products, setProducts] = useState([]);
   const [compactChartData, setCompactChartData] = useState(null);
   const [compactChartMaxY, setCompactChartMaxY] = useState(10);
@@ -57,6 +116,7 @@ export default function InAppDashboard() {
   const [placementRatioChartData, setPlacementRatioChartData] = useState(null);
   const [placementRatioChartRenderKey, setPlacementRatioChartRenderKey] = useState(0);
   const [error, setError] = useState("");
+  const initialLoadDoneRef = useRef(false);
 
   const toApiDate = (value) => {
     // Keep browser ISO format (YYYY-MM-DD) to avoid backend parse issues.
@@ -64,28 +124,40 @@ export default function InAppDashboard() {
   };
 
   useEffect(() => {
-    const loadPlatforms = async () => {
-      try {
-        const apiBase = process.env.REACT_APP_API_BASE_URL || "";
-        const res = await axios.get(`${apiBase}/api/iap/platforms`);
-        const raw = Array.isArray(res.data) ? res.data : [];
-        const options = raw
-          .map((item) => {
-            if (typeof item === "string") return item.trim();
-            if (item && typeof item === "object") {
-              return String(item.platform ?? item.name ?? item.value ?? "").trim();
-            }
-            return "";
-          })
-          .filter(Boolean);
-        setPlatformOptions(Array.from(new Set(options)));
-      } catch (err) {
-        console.error("Failed to load platforms", err);
-        setPlatformOptions([]);
-      }
+    const loadFilterOptions = async () => {
+      const apiBase = process.env.REACT_APP_API_BASE_URL || "";
+      const [countryList, platformList, versionList, placementList, productIdList] = await Promise.all([
+        fetchFirstOptionList(apiBase, ["/api/iap/countries"], ["country", "countryCode", "name", "value"]),
+        fetchFirstOptionList(apiBase, ["/api/iap/platforms"], ["platform", "name", "value"]),
+        fetchFirstOptionList(apiBase, ["/api/iap/game-versions"], [
+          "version",
+          "gameVersion",
+          "name",
+          "value"
+        ]),
+        fetchFirstOptionList(apiBase, ["/api/iap/placements"], [
+          "placement",
+          "placementId",
+          "name",
+          "key",
+          "value"
+        ]),
+        fetchFirstOptionList(apiBase, ["/api/iap/product-ids"], ["productId", "name", "value"])
+      ]);
+
+      setCountryOptions(countryList);
+      setPlatformOptions(platformList);
+      setVersionOptions(versionList);
+      setPlacementOptions(placementList);
+      setProductOptions(productIdList);
+      setCountries(countryList);
+      setPlatforms(platformList);
+      setVersions(versionList);
+      setPlacements(placementList);
+      setProducts(productIdList);
     };
 
-    loadPlatforms();
+    loadFilterOptions();
   }, []);
 
   const buildStackedChart = (rows, metricKeys) => {
@@ -235,10 +307,20 @@ export default function InAppDashboard() {
       fromDate: toApiDate(fromDate),
       toDate: toApiDate(toDate)
     };
-    if (country) params.country = country;
-    if (version) params.gameVersion = version;
-    if (platform) params.platform = platform;
-    if (products.length) params.products = products;
+    if (minLevel !== "") params.minLevel = Number(minLevel);
+    if (maxLevel !== "") params.maxLevel = Number(maxLevel);
+
+    const countryParam = getParamValue(countries, countryOptions);
+    const platformParam = getParamValue(platforms, platformOptions);
+    const versionParam = getParamValue(versions, versionOptions);
+    const placementParam = getParamValue(placements, placementOptions);
+    const productParam = getParamValue(products, productOptions);
+
+    if (countryParam) params.country = countryParam;
+    if (platformParam) params.platform = platformParam;
+    if (versionParam) params.gameVersion = versionParam;
+    if (placementParam) params.placements = placementParam;
+    if (productParam) params.products = productParam;
 
     try {
       setError("");
@@ -292,6 +374,23 @@ export default function InAppDashboard() {
       if (placementRatio) {
         setPlacementRatioChartData(placementRatio);
         setPlacementRatioChartRenderKey((prev) => prev + 1);
+        setPlacementOptions((prev) => {
+          const existing = normalizeUnique(prev);
+          const fromChart = normalizeUnique(placementRatio?.labels);
+          const merged = normalizeUnique([...existing, ...fromChart]);
+
+          setPlacements((prevSelected) => {
+            const selected = normalizeUnique(prevSelected);
+            const wasAllSelected =
+              existing.length > 0 &&
+              selected.length === existing.length &&
+              existing.every((value) => selected.includes(value));
+            if (wasAllSelected || selected.length === 0) return merged;
+            return selected.filter((value) => merged.includes(value));
+          });
+
+          return merged;
+        });
       } else {
         setPlacementRatioChartData(null);
       }
@@ -317,38 +416,100 @@ export default function InAppDashboard() {
     }
   };
 
+  useEffect(() => {
+    if (initialLoadDoneRef.current) return;
+    initialLoadDoneRef.current = true;
+    loadData();
+  }, []);
+
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>
       <div style={{ maxWidth: 1240, margin: "0 auto", background: "#ffffff", borderRadius: 14, padding: 20, boxShadow: "0 10px 28px rgba(15, 23, 42, 0.08)" }}>
         <h2 style={{ margin: "0 0 16px", color: "#0f172a" }}>InApp Analytics</h2>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
           <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} type="date" value={fromDate} onChange={e => setFrom(e.target.value)} />
           <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} type="date" value={toDate} onChange={e => setTo(e.target.value)} />
 
-          <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} placeholder="Country" value={country} onChange={e => setCountry(e.target.value)} />
-          <input style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }} placeholder="Version" value={version} onChange={e => setVersion(e.target.value)} />
+
           <select
-            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
-            value={platform}
-            onChange={(e) => setPlatform(e.target.value)}
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={countries}
+            onChange={(e) => setCountries(Array.from(e.target.selectedOptions, (o) => o.value))}
           >
-            <option value="">All Platforms</option>
+            {countryOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <select
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={platforms}
+            onChange={(e) => setPlatforms(Array.from(e.target.selectedOptions, (o) => o.value))}
+          >
             {platformOptions.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
             ))}
           </select>
+          <select
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={versions}
+            onChange={(e) => setVersions(Array.from(e.target.selectedOptions, (o) => o.value))}
+          >
+            {versionOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <select
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={placements}
+            onChange={(e) => setPlacements(Array.from(e.target.selectedOptions, (o) => o.value))}
+          >
+            {placementOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
 
-          <select style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }} multiple onChange={e =>
-          setProducts(Array.from(e.target.selectedOptions, o => o.value))
-        }>
-          <option value="StarterPack">StarterPack</option>
-          <option value="MysteryPack">MysteryPack</option>
-          <option value="BigBundle">BigBundle</option>
-          <option value="NoAds">NoAds</option>
-        </select>
+          <select
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={products}
+            onChange={(e) => setProducts(Array.from(e.target.selectedOptions, (o) => o.value))}
+          >
+            {productOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+
+                    <input
+            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
+            type="number"
+            min={0}
+            placeholder="Min Level"
+            value={minLevel}
+            onChange={(e) => setMinLevel(e.target.value)}
+          />
+          <input
+            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
+            type="number"
+            min={0}
+            placeholder="Max Level"
+            value={maxLevel}
+            onChange={(e) => setMaxLevel(e.target.value)}
+          />
 
           <button style={{ background: "#1d4ed8", color: "white", border: 0, borderRadius: 8, fontWeight: 600, cursor: "pointer" }} onClick={loadData}>Search</button>
         </div>
