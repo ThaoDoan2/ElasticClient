@@ -43,6 +43,19 @@ const toApiDate = (value) => {
   return value;
 };
 
+const toInputDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getDateOffset = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return toInputDate(d);
+};
+
 const normalizeUnique = (values) =>
   Array.from(new Set((Array.isArray(values) ? values : []).map((v) => String(v).trim()).filter(Boolean)));
 
@@ -236,8 +249,8 @@ async function fetchFirstOptionList(apiBase, endpoints, keyCandidates) {
 }
 
 export default function RewardedAdsDashboard() {
-  const [fromDate, setFromDate] = useState("2026-01-01");
-  const [toDate, setToDate] = useState("2026-02-05");
+  const [fromDate, setFromDate] = useState(() => getDateOffset(-7));
+  const [toDate, setToDate] = useState(() => getDateOffset(0));
   const [minLevel, setMinLevel] = useState("");
   const [maxLevel, setMaxLevel] = useState("");
   const [countries, setCountries] = useState([]);
