@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
@@ -41,6 +41,18 @@ const getSeriesColor = (value) => {
 
 const toApiDate = (value) => {
   return value;
+};
+
+const normalizeUnique = (values) =>
+  Array.from(new Set((Array.isArray(values) ? values : []).map((v) => String(v).trim()).filter(Boolean)));
+
+const getParamValue = (selectedValues, allOptions) => {
+  const options = normalizeUnique(allOptions);
+  const selected = normalizeUnique(selectedValues).filter((v) => options.includes(v));
+  if (!options.length) return "";
+  if (!selected.length) return "";
+  if (selected.length === options.length) return "";
+  return selected.join(",");
 };
 
 const mapToStringOptions = (payload, keyCandidates = []) => {
@@ -226,6 +238,8 @@ async function fetchFirstOptionList(apiBase, endpoints, keyCandidates) {
 export default function RewardedAdsDashboard() {
   const [fromDate, setFromDate] = useState("2026-01-01");
   const [toDate, setToDate] = useState("2026-02-05");
+  const [minLevel, setMinLevel] = useState("");
+  const [maxLevel, setMaxLevel] = useState("");
   const [countries, setCountries] = useState([]);
   const [platforms, setPlatforms] = useState([]);
   const [versions, setVersions] = useState([]);
@@ -243,6 +257,7 @@ export default function RewardedAdsDashboard() {
   const [placementRatioChartData, setPlacementRatioChartData] = useState(null);
   const [placementRatioRenderKey, setPlacementRatioRenderKey] = useState(0);
   const [error, setError] = useState("");
+  const initialLoadDoneRef = useRef(false);
 
   useEffect(() => {
     const loadFilterOptions = async () => {
@@ -275,6 +290,10 @@ export default function RewardedAdsDashboard() {
       setPlatformOptions(platformList);
       setVersionOptions(versionList);
       setPlacementOptions(placementList);
+      setCountries(countryList);
+      setPlatforms(platformList);
+      setVersions(versionList);
+      setPlacements(placementList);
     };
 
     loadFilterOptions();
@@ -288,10 +307,16 @@ export default function RewardedAdsDashboard() {
         fromDate: toApiDate(fromDate),
         toDate: toApiDate(toDate)
       };
-      if (countries.length) params.country = countries.join(",");
-      if (platforms.length) params.platform = platforms.join(",");
-      if (versions.length) params.gameVersion = versions.join(",");
-      if (placements.length) params.placement = placements.join(",");
+      if (minLevel !== "") params.minLevel = Number(minLevel);
+      if (maxLevel !== "") params.maxLevel = Number(maxLevel);
+      const countryParam = getParamValue(countries, countryOptions);
+      const platformParam = getParamValue(platforms, platformOptions);
+      const versionParam = getParamValue(versions, versionOptions);
+      const placementParam = getParamValue(placements, placementOptions);
+      if (countryParam) params.countryCode = countryParam;
+      if (platformParam) params.platform = platformParam;
+      if (versionParam) params.gameVersion = versionParam;
+      if (placementParam) params.placements = placementParam;
 
       const [datePlacementRes, levelRes] = await Promise.all([
         axios.get(`${apiBase}/api/rewarded-ads/amount-by-date-placement`, { params }),
@@ -324,9 +349,21 @@ export default function RewardedAdsDashboard() {
         setPlacementRatioChartData(placementRatio);
         setPlacementRatioRenderKey((prev) => prev + 1);
         setPlacementOptions((prev) => {
-          const existing = Array.isArray(prev) ? prev : [];
-          const fromChart = Array.isArray(placementRatio?.labels) ? placementRatio.labels : [];
-          return Array.from(new Set([...existing, ...fromChart]));
+          const existing = normalizeUnique(prev);
+          const fromChart = normalizeUnique(placementRatio?.labels);
+          const merged = normalizeUnique([...existing, ...fromChart]);
+
+          setPlacements((prevSelected) => {
+            const selected = normalizeUnique(prevSelected);
+            const wasAllSelected =
+              existing.length > 0 &&
+              selected.length === existing.length &&
+              existing.every((value) => selected.includes(value));
+            if (wasAllSelected || selected.length === 0) return merged;
+            return selected.filter((value) => merged.includes(value));
+          });
+
+          return merged;
         });
       } else {
         setDatePlacementChartData(null);
@@ -362,6 +399,12 @@ export default function RewardedAdsDashboard() {
     }
   };
 
+  useEffect(() => {
+    if (initialLoadDoneRef.current) return;
+    initialLoadDoneRef.current = true;
+    loadData();
+  }, []);
+
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>
       <div style={{ maxWidth: 1240, margin: "0 auto", background: "#ffffff", borderRadius: 14, padding: 20, boxShadow: "0 10px 28px rgba(15, 23, 42, 0.08)" }}>
@@ -380,6 +423,7 @@ export default function RewardedAdsDashboard() {
             value={toDate}
             onChange={(e) => setToDate(e.target.value)}
           />
+
           <select
             style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
             multiple
@@ -428,6 +472,23 @@ export default function RewardedAdsDashboard() {
               </option>
             ))}
           </select>
+
+          <input
+            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
+            type="number"
+            min={0}
+            placeholder="Min Level"
+            value={minLevel}
+            onChange={(e) => setMinLevel(e.target.value)}
+          />
+          <input
+            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
+            type="number"
+            min={0}
+            placeholder="Max Level"
+            value={maxLevel}
+            onChange={(e) => setMaxLevel(e.target.value)}
+          />
           <button
             style={{ background: "#1d4ed8", color: "white", border: 0, borderRadius: 8, fontWeight: 600, cursor: "pointer" }}
             onClick={loadData}
