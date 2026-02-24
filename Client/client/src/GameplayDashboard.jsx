@@ -189,6 +189,45 @@ const buildRatioChart = (rows, numeratorKeys, denominatorKeys, label = "Ratio") 
   };
 };
 
+const buildDurationChart = (rows, label = "Duration(s)") => {
+  const grouped = new Map();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const level = toLevelLabel(row);
+    if (!level) return;
+    const duration = pickMetric(row, ["duration", "avgDuration", "averageDuration", "meanDuration"]);
+    if (!Number.isFinite(duration) || duration < 0) return;
+    if (!grouped.has(level)) {
+      grouped.set(level, { total: 0, count: 0 });
+    }
+    const bucket = grouped.get(level);
+    bucket.total += duration;
+    bucket.count += 1;
+  });
+
+  const points = Array.from(grouped.entries())
+    .sort(([a], [b]) => compareLevelsAsc(a, b))
+    .map(([level, values]) => ({ level, values }));
+  if (!points.length) return null;
+
+  return {
+    labels: points.map((item) => item.level),
+    datasets: [
+      {
+        label,
+        data: points.map((item) => {
+          const avg = item.values.count > 0 ? item.values.total / item.values.count : 0;
+          return Number(avg.toFixed(2));
+        }),
+        borderColor: "#eab308",
+        backgroundColor: "#eab30822",
+        borderWidth: 2,
+        tension: 0.25,
+        pointRadius: 2
+      }
+    ]
+  };
+};
+
 const appendRemainPercentDataset = (chartData, userDatasetLabel) => {
   if (!chartData?.datasets?.length) return chartData;
   const userDataset = chartData.datasets.find((d) => d.label === userDatasetLabel);
@@ -233,12 +272,16 @@ export default function GameplayDashboard() {
   const [startRatioChartData, setStartRatioChartData] = useState(null);
   const [winRatioChartData, setWinRatioChartData] = useState(null);
   const [loseRatioChartData, setLoseRatioChartData] = useState(null);
+  const [loseDurationChartData, setLoseDurationChartData] = useState(null);
+  const [winDurationChartData, setWinDurationChartData] = useState(null);
   const [startRenderKey, setStartRenderKey] = useState(0);
   const [winRenderKey, setWinRenderKey] = useState(0);
   const [loseRenderKey, setLoseRenderKey] = useState(0);
   const [startRatioRenderKey, setStartRatioRenderKey] = useState(0);
   const [winRatioRenderKey, setWinRatioRenderKey] = useState(0);
   const [loseRatioRenderKey, setLoseRatioRenderKey] = useState(0);
+  const [loseDurationRenderKey, setLoseDurationRenderKey] = useState(0);
+  const [winDurationRenderKey, setWinDurationRenderKey] = useState(0);
   const [error, setError] = useState("");
   const initialLoadDoneRef = useRef(false);
 
@@ -289,9 +332,9 @@ export default function GameplayDashboard() {
       if (maxLevel !== "") params.maxLevel = Number(maxLevel);
 
       const [startRes, winRes, loseRes] = await Promise.all([
-        axios.get(`${apiBase}/api/gameplay/user-start`, { params }),
-        axios.get(`${apiBase}/api/gameplay/user-win`, { params }),
-        axios.get(`${apiBase}/api/gameplay/user-lose`, { params })
+        axios.post(`${apiBase}/api/gameplay/user-start`, params),
+        axios.post(`${apiBase}/api/gameplay/user-win`, params),
+        axios.post(`${apiBase}/api/gameplay/user-lose`, params)
       ]);
 
       const startData = buildChart(toRows(startRes.data), [
@@ -357,8 +400,19 @@ export default function GameplayDashboard() {
         ["totalUsersLose", "userLose", "totalUserLose", "users", "uniqueUsers", "userCount"],
         "Lose/UserLose Ratio"
       );
+      const loseDurationData = buildDurationChart(toRows(loseRes.data), "Duration(s)");
+      const winDurationData = buildDurationChart(toRows(winRes.data), "Duration(s)");
 
-      if (!startDataWithRemain && !winData && !loseData && !startRatioData && !winRatioData && !loseRatioData) {
+      if (
+        !startDataWithRemain &&
+        !winData &&
+        !loseData &&
+        !startRatioData &&
+        !winRatioData &&
+        !loseRatioData &&
+        !loseDurationData &&
+        !winDurationData
+      ) {
         setError("No gameplay data for selected filters.");
       }
 
@@ -368,12 +422,16 @@ export default function GameplayDashboard() {
       setStartRatioChartData(startRatioData);
       setWinRatioChartData(winRatioData);
       setLoseRatioChartData(loseRatioData);
+      setLoseDurationChartData(loseDurationData);
+      setWinDurationChartData(winDurationData);
       setStartRenderKey((prev) => prev + 1);
       setWinRenderKey((prev) => prev + 1);
       setLoseRenderKey((prev) => prev + 1);
       setStartRatioRenderKey((prev) => prev + 1);
       setWinRatioRenderKey((prev) => prev + 1);
       setLoseRatioRenderKey((prev) => prev + 1);
+      setLoseDurationRenderKey((prev) => prev + 1);
+      setWinDurationRenderKey((prev) => prev + 1);
     } catch (err) {
       if (axios.isAxiosError(err) && !err.response) {
         setError("Cannot reach API. Make sure backend is running and proxy/base URL is configured.");
@@ -392,6 +450,8 @@ export default function GameplayDashboard() {
       setStartRatioChartData(null);
       setWinRatioChartData(null);
       setLoseRatioChartData(null);
+      setLoseDurationChartData(null);
+      setWinDurationChartData(null);
     }
   };
 
@@ -589,7 +649,7 @@ export default function GameplayDashboard() {
         {loseRatioChartData && (
           <>
             <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Ratio Lose / User Lose</h3>
-            <div style={{ height: 280 }}>
+            <div style={{ height: 280, marginBottom: 18 }}>
               <Line
                 key={loseRatioRenderKey}
                 redraw
@@ -600,6 +660,48 @@ export default function GameplayDashboard() {
                   plugins: { legend: { position: "right" } },
                   scales: {
                     y: { beginAtZero: true }
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {loseDurationChartData && (
+          <>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Average Duration of User Lose by Level</h3>
+            <div style={{ height: 280, marginBottom: 18 }}>
+              <Line
+                key={loseDurationRenderKey}
+                redraw
+                data={loseDurationChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: "right" } },
+                  scales: {
+                    y: { beginAtZero: true, title: { display: true, text: "Duration(s)" } }
+                  }
+                }}
+              />
+            </div>
+          </>
+        )}
+
+        {winDurationChartData && (
+          <>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Average Duration of User Win by Level</h3>
+            <div style={{ height: 280 }}>
+              <Line
+                key={winDurationRenderKey}
+                redraw
+                data={winDurationChartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: "right" } },
+                  scales: {
+                    y: { beginAtZero: true, title: { display: true, text: "Duration(s)" } }
                   }
                 }}
               />
