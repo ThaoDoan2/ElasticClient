@@ -29,6 +29,15 @@ const getDateOffset = (days) => {
 const normalizeUnique = (values) =>
   Array.from(new Set((Array.isArray(values) ? values : []).map((v) => String(v).trim()).filter(Boolean)));
 
+const getSelectedValues = (selectedValues, allOptions) => {
+  const options = normalizeUnique(allOptions);
+  const selected = normalizeUnique(selectedValues).filter((v) => options.includes(v));
+  if (!options.length) return [];
+  if (!selected.length) return [];
+  if (selected.length === options.length) return [];
+  return selected;
+};
+
 const mapToStringOptions = (payload, keyCandidates = []) => {
   if (Array.isArray(payload)) {
     return payload
@@ -258,9 +267,9 @@ const appendRemainPercentDataset = (chartData, userDatasetLabel) => {
 export default function GameplayDashboard() {
   const [fromDate, setFromDate] = useState(() => getDateOffset(-7));
   const [toDate, setToDate] = useState(() => getDateOffset(0));
-  const [country, setCountry] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [version, setVersion] = useState("");
+  const [countries, setCountries] = useState([]);
+  const [platforms, setPlatforms] = useState([]);
+  const [versions, setVersions] = useState([]);
   const [minLevel, setMinLevel] = useState("");
   const [maxLevel, setMaxLevel] = useState("");
   const [countryOptions, setCountryOptions] = useState([]);
@@ -309,6 +318,9 @@ export default function GameplayDashboard() {
       setCountryOptions(countryList);
       setPlatformOptions(platformList);
       setVersionOptions(versionList);
+      setCountries(countryList);
+      setPlatforms(platformList);
+      setVersions(versionList);
     };
 
     loadFilterOptions();
@@ -322,12 +334,15 @@ export default function GameplayDashboard() {
         fromDate,
         toDate
       };
-      if (country) {
-        params.country = country;
-        params.countryCode = country;
+      const countryValues = getSelectedValues(countries, countryOptions);
+      const platformValues = getSelectedValues(platforms, platformOptions);
+      const versionValues = getSelectedValues(versions, versionOptions);
+      if (countryValues.length) {
+        params.country = countryValues;
+        params.countryCode = countryValues;
       }
-      if (platform) params.platform = platform;
-      if (version) params.gameVersion = version;
+      if (platformValues.length) params.platform = platformValues;
+      if (versionValues.length) params.gameVersion = versionValues;
       if (minLevel !== "") params.minLevel = Number(minLevel);
       if (maxLevel !== "") params.maxLevel = Number(maxLevel);
 
@@ -480,11 +495,11 @@ export default function GameplayDashboard() {
             onChange={(e) => setToDate(e.target.value)}
           />
           <select
-            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={countries}
+            onChange={(e) => setCountries(Array.from(e.target.selectedOptions, (o) => o.value))}
           >
-            <option value="">All Countries</option>
             {normalizeUnique(countryOptions).map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -492,11 +507,11 @@ export default function GameplayDashboard() {
             ))}
           </select>
           <select
-            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={versions}
+            onChange={(e) => setVersions(Array.from(e.target.selectedOptions, (o) => o.value))}
           >
-            <option value="">All Versions</option>
             {normalizeUnique(versionOptions).map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -504,11 +519,11 @@ export default function GameplayDashboard() {
             ))}
           </select>
           <select
-            style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
-            value={platform}
-            onChange={(e) => setPlatform(e.target.value)}
+            style={{ padding: 8, border: "1px solid #d1d5db", borderRadius: 8, minHeight: 92 }}
+            multiple
+            value={platforms}
+            onChange={(e) => setPlatforms(Array.from(e.target.selectedOptions, (o) => o.value))}
           >
-            <option value="">All Platforms</option>
             {normalizeUnique(platformOptions).map((option) => (
               <option key={option} value={option}>
                 {option}
