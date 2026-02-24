@@ -2,6 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import InAppDashboard from "./InAppDashboard";
 import GameplayDashboard from "./GameplayDashboard";
+import ResourcesDashboard from "./ResourcesDashboard";
 import RewardedAdsDashboard from "./RewardedAdsDashboard";
 
 function App() {
@@ -52,11 +53,26 @@ function App() {
         >
           Gameplay
         </button>
+        <button
+          style={{
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: 0,
+            cursor: "pointer",
+            background: page === "resources" ? "#1d4ed8" : "#ffffff",
+            color: page === "resources" ? "#ffffff" : "#111827",
+            fontWeight: 600
+          }}
+          onClick={() => setPage("resources")}
+        >
+          Resources
+        </button>
       </div>
 
       {page === "iap" && <InAppDashboard />}
       {page === "rewarded" && <RewardedAdsDashboard />}
       {page === "gameplay" && <GameplayDashboard />}
+      {page === "resources" && <ResourcesDashboard />}
     </div>
   );
 }
