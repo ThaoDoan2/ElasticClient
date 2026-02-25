@@ -10,100 +10,21 @@ import {
   Tooltip,
   Legend
 } from "chart.js";
+import {
+  fetchFirstOptionList,
+  getDateOffset,
+  getSelectedValues,
+  normalizeUnique,
+  pickMetric,
+  toRows
+} from "./dashboardUtils";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
-
-const toInputDate = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getDateOffset = (days) => {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return toInputDate(d);
-};
-
-const normalizeUnique = (values) =>
-  Array.from(new Set((Array.isArray(values) ? values : []).map((v) => String(v).trim()).filter(Boolean)));
-
-const getSelectedValues = (selectedValues, allOptions) => {
-  const options = normalizeUnique(allOptions);
-  const selected = normalizeUnique(selectedValues).filter((v) => options.includes(v));
-  if (!options.length) return [];
-  if (!selected.length) return [];
-  if (selected.length === options.length) return [];
-  return selected;
-};
-
-const mapToStringOptions = (payload, keyCandidates = []) => {
-  if (Array.isArray(payload)) {
-    return payload
-      .map((item) => {
-        if (typeof item === "string" || typeof item === "number") return String(item).trim();
-        if (item && typeof item === "object") {
-          for (const key of keyCandidates) {
-            const value = item?.[key];
-            if (value !== undefined && value !== null && String(value).trim()) {
-              return String(value).trim();
-            }
-          }
-        }
-        return "";
-      })
-      .filter(Boolean);
-  }
-
-  if (payload && typeof payload === "object") {
-    return Object.keys(payload).map((key) => String(key).trim()).filter(Boolean);
-  }
-
-  return [];
-};
-
-async function fetchFirstOptionList(apiBase, endpoints, keyCandidates) {
-  for (const endpoint of endpoints) {
-    try {
-      const response = await axios.get(`${apiBase}${endpoint}`);
-      const options = Array.from(new Set(mapToStringOptions(response.data, keyCandidates)));
-      if (options.length) return options;
-    } catch (err) {
-      if (axios.isAxiosError(err) && err.response?.status === 404) {
-        continue;
-      }
-    }
-  }
-  return [];
-}
-
-const toRows = (payload) => {
-  if (Array.isArray(payload)) return payload;
-  if (payload && Array.isArray(payload.data)) return payload.data;
-  if (payload && typeof payload === "object") {
-    return Object.entries(payload).map(([key, value]) =>
-      value && typeof value === "object"
-        ? { level: key, ...value }
-        : { level: key, value }
-    );
-  }
-  return [];
-};
 
 const toLevelLabel = (row) => {
   const value = row?.level ?? row?.gameLevel ?? row?.stage ?? row?.x ?? row?.key;
   if (value === undefined || value === null) return "";
   return String(value).trim();
-};
-
-const pickMetric = (row, keys) => {
-  for (const key of keys) {
-    const raw = row?.[key];
-    const value = Number(raw);
-    if (Number.isFinite(value)) return value;
-  }
-  return 0;
 };
 
 const compareLevelsAsc = (a, b) => {
@@ -352,7 +273,7 @@ export default function GameplayDashboard() {
         axios.post(`${apiBase}/api/gameplay/user-lose`, params)
       ]);
 
-      const startData = buildChart(toRows(startRes.data), [
+      const startData = buildChart(toRows(startRes.data, "level"), [
         {
           key: "starts",
           label: "Total Starts",
@@ -368,13 +289,13 @@ export default function GameplayDashboard() {
       ]);
       const startDataWithRemain = appendRemainPercentDataset(startData, "Users Started");
       const startRatioData = buildRatioChart(
-        toRows(startRes.data),
+        toRows(startRes.data, "level"),
         ["totalStarts", "startCount", "totalStart", "starts", "count", "playCount", "total", "value", "amount"],
         ["totalUsersStart", "userStart", "totalUserStart", "users", "uniqueUsers", "userCount"],
         "Start/UserStart Ratio"
       );
 
-      const winData = buildChart(toRows(winRes.data), [
+      const winData = buildChart(toRows(winRes.data, "level"), [
         {
           key: "wins",
           label: "Total Wins",
@@ -389,13 +310,13 @@ export default function GameplayDashboard() {
         }
       ]);
       const winRatioData = buildRatioChart(
-        toRows(winRes.data),
+        toRows(winRes.data, "level"),
         ["totalWins", "winCount", "totalWin", "wins", "count", "playCount", "total", "value", "amount"],
         ["totalUsersWin", "userWin", "totalUserWin", "users", "uniqueUsers", "userCount"],
         "Win/UserWin Ratio"
       );
 
-      const loseData = buildChart(toRows(loseRes.data), [
+      const loseData = buildChart(toRows(loseRes.data, "level"), [
         {
           key: "loses",
           label: "Total Loses",
@@ -410,13 +331,13 @@ export default function GameplayDashboard() {
         }
       ]);
       const loseRatioData = buildRatioChart(
-        toRows(loseRes.data),
+        toRows(loseRes.data, "level"),
         ["totalLoses", "loseCount", "totalLose", "loses", "count", "playCount", "total", "value", "amount"],
         ["totalUsersLose", "userLose", "totalUserLose", "users", "uniqueUsers", "userCount"],
         "Lose/UserLose Ratio"
       );
-      const loseDurationData = buildDurationChart(toRows(loseRes.data), "Duration(s)");
-      const winDurationData = buildDurationChart(toRows(winRes.data), "Duration(s)");
+      const loseDurationData = buildDurationChart(toRows(loseRes.data, "level"), "Duration(s)");
+      const winDurationData = buildDurationChart(toRows(winRes.data, "level"), "Duration(s)");
 
       if (
         !startDataWithRemain &&
