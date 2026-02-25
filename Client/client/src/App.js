@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./App.css";
 import InAppDashboard from "./InAppDashboard";
@@ -48,6 +48,7 @@ function App() {
   const [games, setGames] = useState([]);
   const [selectedGame, setSelectedGame] = useState(() => window.localStorage.getItem(GAME_STORAGE_KEY) || "");
   const [page, setPage] = useState("iap");
+  const selectedGameIds = useMemo(() => (selectedGame ? [selectedGame] : []), [selectedGame]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -256,10 +257,10 @@ function App() {
         </button>
       </div>
 
-      {page === "iap" && <InAppDashboard />}
-      {page === "rewarded" && <RewardedAdsDashboard />}
-      {page === "gameplay" && <GameplayDashboard />}
-      {page === "resources" && <ResourcesDashboard />}
+      {page === "iap" && <InAppDashboard gameIds={selectedGameIds} />}
+      {page === "rewarded" && <RewardedAdsDashboard gameIds={selectedGameIds} />}
+      {page === "gameplay" && <GameplayDashboard gameIds={selectedGameIds} />}
+      {page === "resources" && <ResourcesDashboard gameIds={selectedGameIds} />}
     </div>
   );
 }

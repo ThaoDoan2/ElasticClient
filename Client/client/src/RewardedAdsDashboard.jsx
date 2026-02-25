@@ -189,7 +189,7 @@ async function fetchLevelAmount(apiBase, params) {
   }
 }
 
-export default function RewardedAdsDashboard() {
+export default function RewardedAdsDashboard({ gameIds = [] }) {
   const [fromDate, setFromDate] = useState(() => getDateOffset(-7));
   const [toDate, setToDate] = useState(() => getDateOffset(0));
   const [minLevel, setMinLevel] = useState("");
@@ -261,6 +261,7 @@ export default function RewardedAdsDashboard() {
         fromDate: toApiDate(fromDate),
         toDate: toApiDate(toDate)
       };
+      if (Array.isArray(gameIds) && gameIds.length) params.gameIds = gameIds;
       if (minLevel !== "") params.minLevel = Number(minLevel);
       if (maxLevel !== "") params.maxLevel = Number(maxLevel);
       const countryParam = getParamValue(countries, countryOptions);
@@ -358,6 +359,11 @@ export default function RewardedAdsDashboard() {
     initialLoadDoneRef.current = true;
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!initialLoadDoneRef.current) return;
+    loadData();
+  }, [gameIds]);
 
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>

@@ -44,7 +44,7 @@ const getProductColor = (productId) => {
   return PRODUCT_COLORS[index];
 };
 
-export default function InAppDashboard() {
+export default function InAppDashboard({ gameIds = [] }) {
   const [fromDate, setFrom] = useState(() => getDateOffset(-7));
   const [toDate, setTo] = useState(() => getDateOffset(0));
   const [minLevel, setMinLevel] = useState("");
@@ -261,6 +261,7 @@ export default function InAppDashboard() {
       fromDate: toApiDate(fromDate),
       toDate: toApiDate(toDate)
     };
+    if (Array.isArray(gameIds) && gameIds.length) params.gameIds = gameIds;
     if (minLevel !== "") params.minLevel = Number(minLevel);
     if (maxLevel !== "") params.maxLevel = Number(maxLevel);
 
@@ -375,6 +376,11 @@ export default function InAppDashboard() {
     initialLoadDoneRef.current = true;
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!initialLoadDoneRef.current) return;
+    loadData();
+  }, [gameIds]);
 
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>

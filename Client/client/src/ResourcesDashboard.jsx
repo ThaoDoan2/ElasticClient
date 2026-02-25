@@ -150,7 +150,7 @@ async function requestResourceData(apiBase, endpointCandidates, payload) {
   throw lastError || new Error("Cannot find supported resource endpoint.");
 }
 
-export default function ResourcesDashboard() {
+export default function ResourcesDashboard({ gameIds = [] }) {
   const [fromDate, setFromDate] = useState(() => getDateOffset(-7));
   const [toDate, setToDate] = useState(() => getDateOffset(0));
   const [countries, setCountries] = useState([]);
@@ -235,6 +235,7 @@ export default function ResourcesDashboard() {
       setError("");
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
       const payload = { fromDate, toDate };
+      if (Array.isArray(gameIds) && gameIds.length) payload.gameIds = gameIds;
       const countryValues = getSelectedValues(countries, countryOptions);
       const platformValues = getSelectedValues(platforms, platformOptions);
       const versionValues = getSelectedValues(versions, versionOptions);
@@ -310,6 +311,11 @@ export default function ResourcesDashboard() {
     initialLoadDoneRef.current = true;
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!initialLoadDoneRef.current) return;
+    loadData();
+  }, [gameIds]);
 
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>

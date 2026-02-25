@@ -185,7 +185,7 @@ const appendRemainPercentDataset = (chartData, userDatasetLabel) => {
   };
 };
 
-export default function GameplayDashboard() {
+export default function GameplayDashboard({ gameIds = [] }) {
   const [fromDate, setFromDate] = useState(() => getDateOffset(-7));
   const [toDate, setToDate] = useState(() => getDateOffset(0));
   const [countries, setCountries] = useState([]);
@@ -255,6 +255,7 @@ export default function GameplayDashboard() {
         fromDate,
         toDate
       };
+      if (Array.isArray(gameIds) && gameIds.length) params.gameIds = gameIds;
       const countryValues = getSelectedValues(countries, countryOptions);
       const platformValues = getSelectedValues(platforms, platformOptions);
       const versionValues = getSelectedValues(versions, versionOptions);
@@ -396,6 +397,11 @@ export default function GameplayDashboard() {
     initialLoadDoneRef.current = true;
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (!initialLoadDoneRef.current) return;
+    loadData();
+  }, [gameIds]);
 
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>
