@@ -21,8 +21,6 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
-const toBase64 = (value) => window.btoa(unescape(encodeURIComponent(value)));
-
 const toLevelLabel = (row) => {
   const value = row?.level ?? row?.gameLevel ?? row?.stage ?? row?.x ?? row?.key;
   if (value === undefined || value === null) return "";
@@ -126,7 +124,7 @@ const buildDurationChart = (rows, label = "Duration(s)") => {
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const level = toLevelLabel(row);
     if (!level) return;
-    const duration = pickMetric(row, ["duration", "avgDuration", "averageDuration", "meanDuration"]);
+    const duration = pickMetric(row, ["duration"]);
     if (!Number.isFinite(duration) || duration < 0) return;
     if (!grouped.has(level)) {
       grouped.set(level, { total: 0, count: 0 });
@@ -221,21 +219,16 @@ export default function GameplayDashboard({ gameIds = [] }) {
     const loadFilterOptions = async () => {
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
       const [countryList, platformList, versionList] = await Promise.all([
-        fetchFirstOptionList(apiBase, ["/api/gameplay/countries", "/api/iap/countries"], [
-          "country",
-          "countryCode",
-          "name",
-          "value"
+        fetchFirstOptionList(apiBase, ["/api/gameplay/countries"], [
+          "countryCode"
         ]),
-        fetchFirstOptionList(apiBase, ["/api/gameplay/platforms", "/api/iap/platforms"], [
-          "platform",
-          "name",
-          "value"
+        fetchFirstOptionList(apiBase, ["/api/gameplay/platforms"], [
+          "platform"
         ]),
         fetchFirstOptionList(
           apiBase,
-          ["/api/gameplay/game-versions", "/api/iap/game-versions", "/api/iap/versions"],
-          ["version", "gameVersion", "name", "value"]
+          ["/api/gameplay/game-versions"],
+          ["gameVersion"]
         )
       ]);
       setCountryOptions(countryList);
@@ -399,11 +392,6 @@ export default function GameplayDashboard({ gameIds = [] }) {
     initialLoadDoneRef.current = true;
     loadData();
   }, []);
-
-  useEffect(() => {
-    if (!initialLoadDoneRef.current) return;
-    loadData();
-  }, [gameIds]);
 
   return (
     <div style={{ padding: 24, background: "#f3f4f6", minHeight: "100vh" }}>

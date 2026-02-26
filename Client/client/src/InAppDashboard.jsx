@@ -81,22 +81,11 @@ export default function InAppDashboard({ gameIds = [] }) {
     const loadFilterOptions = async () => {
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
       const [countryList, platformList, versionList, placementList, productIdList] = await Promise.all([
-        fetchFirstOptionList(apiBase, ["/api/iap/countries"], ["country", "countryCode", "name", "value"]),
-        fetchFirstOptionList(apiBase, ["/api/iap/platforms"], ["platform", "name", "value"]),
-        fetchFirstOptionList(apiBase, ["/api/iap/game-versions"], [
-          "version",
-          "gameVersion",
-          "name",
-          "value"
-        ]),
-        fetchFirstOptionList(apiBase, ["/api/iap/placements"], [
-          "placement",
-          "placementId",
-          "name",
-          "key",
-          "value"
-        ]),
-        fetchFirstOptionList(apiBase, ["/api/iap/product-ids"], ["productId", "name", "value"])
+        fetchFirstOptionList(apiBase, ["/api/iap/countries"], ["countryCode"]),
+        fetchFirstOptionList(apiBase, ["/api/iap/platforms"], ["platform"]),
+        fetchFirstOptionList(apiBase, ["/api/iap/game-versions"], ["gameVersion"]),
+        fetchFirstOptionList(apiBase, ["/api/iap/placements"], ["placement"]),
+        fetchFirstOptionList(apiBase, ["/api/iap/product-ids"], ["productId"])
       ]);
 
       setCountryOptions(countryList);
@@ -281,21 +270,16 @@ export default function InAppDashboard({ gameIds = [] }) {
       setError("");
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
       const [compactRes, revenueRes, placementRatioRes] = await Promise.all([
-        axios.get(`${apiBase}/api/iap/chart/compact`, { params }),
+        axios.get(`${apiBase}/api/iap/count-by-date`, { params }),
         axios.get(`${apiBase}/api/iap/revenue-by-date`, { params }),
         axios.get(`${apiBase}/api/iap/ratio/placement`, { params })
       ]);
 
       const compact = buildStackedChart(compactRes.data, [
-        "count",
-        "quantity",
-        "purchases",
-        "total"
+        "count"
       ]);
       const revenue = buildStackedChart(revenueRes.data, [
-        "revenue",
-        "amount",
-        "totalRevenue"
+        "revenue"
       ]);
       const placementRatio = buildPlacementRatioChart(placementRatioRes.data);
 
@@ -454,7 +438,7 @@ export default function InAppDashboard({ gameIds = [] }) {
             ))}
           </select>
 
-                    <input
+          <input
             style={{ padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: 8 }}
             type="number"
             min={0}

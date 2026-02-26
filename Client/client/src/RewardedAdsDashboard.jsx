@@ -176,15 +176,10 @@ const buildPlacementRatioChart = (stackedChart) => {
 };
 
 async function fetchLevelAmount(apiBase, params) {
-  const primary = `${apiBase}/api/rewarded-ads/amount-by-level-placement`;
-  const fallback = `${apiBase}/api/rewarded-ads/amount-by-level`;
-
+  const primary = `${apiBase}/api/rewarded-ads/amount-by-level`;
   try {
     return await axios.get(primary, { params });
   } catch (err) {
-    if (axios.isAxiosError(err) && err.response?.status === 404) {
-      return axios.get(fallback, { params });
-    }
     throw err;
   }
 }
@@ -274,21 +269,15 @@ export default function RewardedAdsDashboard({ gameIds = [] }) {
       if (placementParam) params.placements = placementParam;
 
       const [datePlacementRes, levelRes] = await Promise.all([
-        axios.get(`${apiBase}/api/rewarded-ads/amount-by-date-placement`, { params }),
+        axios.get(`${apiBase}/api/rewarded-ads/amount-by-date`, { params }),
         fetchLevelAmount(apiBase, params)
       ]);
 
       const datePlacement = buildStackedChart(datePlacementRes.data, [
-        "amount",
-        "totalAmount",
-        "count",
-        "value"
+        "amount"
       ]);
       const levelPlacement = buildStackedByLevelChart(levelRes.data, [
-        "amount",
-        "totalAmount",
-        "count",
-        "value"
+        "amount"
       ]);
 
       if (!datePlacement && !levelPlacement) {
@@ -483,7 +472,7 @@ export default function RewardedAdsDashboard({ gameIds = [] }) {
 
         {levelPlacementChartData && (
           <>
-            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Rewarded Amount by Level (Group by Placement)</h3>
+            <h3 style={{ margin: "8px 0 8px", color: "#111827" }}>Rewarded Amount by Level</h3>
             <div style={{ height: 320 }}>
               <Bar
                 key={levelPlacementRenderKey}

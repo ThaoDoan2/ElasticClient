@@ -12,8 +12,8 @@ const normalizeGames = (payload) => {
           return { value, label: value };
         }
         if (item && typeof item === "object") {
-          const rawValue = item.id ?? item.gameId ?? item.code ?? item.key ?? item.value ?? item.name;
-          const rawLabel = item.name ?? item.gameName ?? item.title ?? item.displayName ?? rawValue;
+          const rawValue = item.gameId;
+          const rawLabel = item.name?? rawValue;
           if (rawValue === undefined || rawValue === null) return null;
           return { value: String(rawValue), label: String(rawLabel ?? rawValue) };
         }
@@ -41,22 +41,19 @@ const normalizeUserRows = (payload) => {
       }
       if (!item || typeof item !== "object") return null;
 
-      const id = item.id ?? item.userId ?? item.username ?? item.userName ?? item.email;
+      const id = item.username;
       if (id === undefined || id === null) return null;
-      const username = item.username ?? item.userName ?? item.email ?? String(id);
+      const username = item.username ?? String(id);
 
       const sourceGames =
         item.gameIds ??
-        item.allowedGameIds ??
-        item.games ??
-        item.allowedGames ??
         [];
       const gameIds = Array.isArray(sourceGames)
         ? sourceGames
             .map((g) => {
               if (typeof g === "string" || typeof g === "number") return String(g);
               if (g && typeof g === "object") {
-                const raw = g.id ?? g.gameId ?? g.code ?? g.value ?? g.name;
+                const raw = g.gameId;
                 return raw === undefined || raw === null ? "" : String(raw);
               }
               return "";
