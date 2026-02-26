@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import "./App.css";
 import InAppDashboard from "./InAppDashboard";
+import AdminAccessDashboard from "./AdminAccessDashboard";
 import GameplayDashboard from "./GameplayDashboard";
 import ResourcesDashboard from "./ResourcesDashboard";
 import RewardedAdsDashboard from "./RewardedAdsDashboard";
 
 const AUTH_STORAGE_KEY = "elastic_client_logged_in";
 const GAME_STORAGE_KEY = "elastic_client_selected_game";
+const USER_STORAGE_KEY = "elastic_client_username";
+const ADMIN_STORAGE_KEY = "elastic_client_is_admin";
 const toBase64 = (value) => window.btoa(unescape(encodeURIComponent(value)));
 const normalizeGames = (payload) => {
   if (Array.isArray(payload)) {
@@ -38,11 +41,40 @@ const normalizeGames = (payload) => {
   return [];
 };
 
+const inferIsAdmin = (authPayload, fallbackUsername) => {
+  if (!authPayload || typeof authPayload !== "object") {
+    return String(fallbackUsername || "").toLowerCase() === "admin";
+  }
+  if (authPayload.isAdmin === true || authPayload.admin === true) return true;
+
+  const roleSources = [
+    authPayload.roles,
+    authPayload.authorities,
+    authPayload.role,
+    authPayload.user?.roles,
+    authPayload.user?.authorities,
+    authPayload.user?.role
+  ];
+
+  const roles = roleSources
+    .flatMap((source) => (Array.isArray(source) ? source : source ? [source] : []))
+    .map((role) => {
+      if (typeof role === "string") return role;
+      if (role && typeof role === "object") return role.name ?? role.role ?? role.authority ?? "";
+      return "";
+    })
+    .map((role) => String(role).toUpperCase());
+
+  if (roles.some((role) => role.includes("ADMIN"))) return true;
+  return String(fallbackUsername || "").toLowerCase() === "admin";
+};
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return window.localStorage.getItem(AUTH_STORAGE_KEY) === "1";
   });
-  const [username, setUsername] = useState("");
+  const [isAdmin, setIsAdmin] = useState(() => window.localStorage.getItem(ADMIN_STORAGE_KEY) === "1");
+  const [username, setUsername] = useState(() => window.localStorage.getItem(USER_STORAGE_KEY) || "");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [games, setGames] = useState([]);
@@ -89,14 +121,19 @@ function App() {
     try {
       setLoginError("");
       const apiBase = process.env.REACT_APP_API_BASE_URL || "";
-      await axios.post(`${apiBase}/api/auth/login`, {
+      const response = await axios.post(`${apiBase}/api/auth/login`, {
         username: user,
         password: toBase64(pass),
         passwordEncoded: true
       });
+      const admin = inferIsAdmin(response.data, user);
 
       window.localStorage.setItem(AUTH_STORAGE_KEY, "1");
+      window.localStorage.setItem(USER_STORAGE_KEY, user);
+      window.localStorage.setItem(ADMIN_STORAGE_KEY, admin ? "1" : "0");
       setIsAuthenticated(true);
+      setIsAdmin(admin);
+      setUsername(user);
       setPassword("");
     } catch (err) {
       if (axios.isAxiosError(err) && !err.response) {
@@ -118,7 +155,11 @@ function App() {
 
   const handleLogout = () => {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.localStorage.removeItem(USER_STORAGE_KEY);
+    window.localStorage.removeItem(ADMIN_STORAGE_KEY);
     setIsAuthenticated(false);
+    setIsAdmin(false);
+    setUsername("");
     setPassword("");
   };
 
@@ -176,6 +217,7 @@ function App() {
         >
           InApp
         </button>
+        
         <button
           style={{
             padding: "8px 12px",
@@ -218,6 +260,22 @@ function App() {
         >
           Resources
         </button>
+        {isAdmin && (
+          <button
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: 0,
+              cursor: "pointer",
+              background: page === "admin" ? "#1d4ed8" : "#ffffff",
+              color: page === "admin" ? "#ffffff" : "#111827",
+              fontWeight: 600
+            }}
+            onClick={() => setPage("admin")}
+          >
+            Admin
+          </button>
+        )}
         <select
           style={{
             marginLeft: "auto",
@@ -241,6 +299,8 @@ function App() {
             </option>
           ))}
         </select>
+
+        <span style={{ fontWeight: 600, color: "#1f2937" }}>{username}</span>
         <button
           style={{
             padding: "8px 12px",
@@ -261,6 +321,7 @@ function App() {
       {page === "rewarded" && <RewardedAdsDashboard gameIds={selectedGameIds} />}
       {page === "gameplay" && <GameplayDashboard gameIds={selectedGameIds} />}
       {page === "resources" && <ResourcesDashboard gameIds={selectedGameIds} />}
+      {page === "admin" && isAdmin && <AdminAccessDashboard />}
     </div>
   );
 }

@@ -21,6 +21,8 @@ import {
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
+const toBase64 = (value) => window.btoa(unescape(encodeURIComponent(value)));
+
 const toLevelLabel = (row) => {
   const value = row?.level ?? row?.gameLevel ?? row?.stage ?? row?.x ?? row?.key;
   if (value === undefined || value === null) return "";
