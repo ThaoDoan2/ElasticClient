@@ -142,3 +142,108 @@
     font-size: 24px;
   }
 }
+
+.account-menu-wrap {
+  position: relative;
+}
+
+.account-menu-button {
+  border: 0;
+  border-radius: 6px;
+  background: #374151;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.account-menu-dropdown {
+  position: absolute;
+  top: 110%;
+  right: 0;
+  min-width: 180px;
+  background: #ffffff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.15);
+  z-index: 50;
+}
+
+.account-menu-item {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  padding: 10px 12px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.account-menu-item:last-child {
+  border-bottom: 0;
+}
+
+.account-menu-item:hover {
+  background: #f3f4f6;
+}
+
+.password-page {
+  min-height: calc(100vh - 56px);
+  background: #e5e7eb;
+  padding: 28px 20px;
+}
+
+.password-card {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.password-title {
+  margin: 0 0 14px;
+  color: #1f2937;
+  font-size: 44px;
+  font-weight: 300;
+}
+
+.password-label {
+  display: block;
+  margin: 12px 0 6px;
+  font-size: 20px;
+  color: #1f2937;
+}
+
+.password-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  background: #f3f4f6;
+  border-left: 4px solid #ef4444;
+  border-radius: 2px;
+  padding: 10px 12px;
+  font-size: 20px;
+}
+
+.password-error {
+  margin-top: 10px;
+  color: #b00020;
+  font-size: 18px;
+}
+
+.password-success {
+  margin-top: 10px;
+  color: #047857;
+  font-size: 18px;
+}
+
+.password-save-button {
+  margin-top: 16px;
+  background: #6695bf;
+  color: #ffffff;
+  border: 0;
+  border-radius: 2px;
+  padding: 10px 22px;
+  font-size: 26px;
+  cursor: pointer;
+}
